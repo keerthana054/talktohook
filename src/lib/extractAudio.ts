@@ -1,23 +1,16 @@
 // src/lib/extractAudio.ts
 //
-// Extracts audio from a video buffer using fluent-ffmpeg + the bundled
-// ffmpeg binary from @ffmpeg-installer/ffmpeg. This replaces the original
-// version that shelled out to a system `ffmpeg` binary, which isn't
-// available on Vercel's serverless functions.
-//
-// The npm package bundles a precompiled ffmpeg binary for each platform
-// (Linux x64 for Vercel, macOS arm64/x64 for local dev) and exposes its
-// path via ffmpegInstaller.path -- fluent-ffmpeg then uses that path
-// instead of looking for ffmpeg on $PATH.
+// Extracts audio from a video buffer using the `ffmpeg-static` package,
+// which bundles a precompiled ffmpeg binary and exposes it as a simple
+// default string export (the path to the binary). This is compatible with
+// Next.js 16's Turbopack bundler, unlike @ffmpeg-installer/ffmpeg which
+// uses dynamic require() calls that Turbopack can't resolve at build time.
 
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
+import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
-
-// Point fluent-ffmpeg at the bundled binary, not the system one.
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 /**
  * Takes a raw video buffer, writes it to a temp file, extracts audio as
@@ -30,10 +23,13 @@ export async function extractAudioFromVideo(
   videoBuffer: Buffer,
   originalFileName: string
 ): Promise<string> {
+  if (!ffmpegPath) {
+    throw new Error("ffmpeg-static binary not found. Make sure ffmpeg-static is installed.");
+  }
+
   const tmpDir = os.tmpdir();
   const uniqueId = `talktohook_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-  // Write the incoming video buffer to a temp file so ffmpeg can read it.
   const ext = path.extname(originalFileName) || ".mp4";
   const videoPath = path.join(tmpDir, `${uniqueId}${ext}`);
   const audioPath = path.join(tmpDir, `${uniqueId}.mp3`);
@@ -42,18 +38,32 @@ export async function extractAudioFromVideo(
 
   try {
     await new Promise<void>((resolve, reject) => {
-      ffmpeg(videoPath)
-        .noVideo()
-        .audioChannels(1)        // mono
-        .audioFrequency(16000)   // 16kHz -- optimal for speech transcription
-        .audioBitrate("32k")     // low bitrate keeps the file small
-        .format("mp3")
-        .on("error", (err) => reject(new Error(`ffmpeg error: ${err.message}`)))
-        .on("end", () => resolve())
-        .save(audioPath);
+      const ffmpeg = spawn(ffmpegPath!, [
+        "-i", videoPath,
+        "-vn",               // no video
+        "-ac", "1",          // mono
+        "-ar", "16000",      // 16kHz -- optimal for speech transcription
+        "-ab", "32k",        // low bitrate keeps the file small
+        "-f", "mp3",
+        "-y",                // overwrite output if it exists
+        audioPath,
+      ]);
+
+      let stderr = "";
+      ffmpeg.stderr.on("data", (data) => { stderr += data.toString(); });
+      ffmpeg.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+      ffmpeg.on("error", (err) => {
+        reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+      });
     });
   } finally {
-    // Clean up the video temp file immediately -- we only need the audio.
+    // Clean up the video temp file immediately.
     await fs.unlink(videoPath).catch(() => {});
   }
 
@@ -61,13 +71,8 @@ export async function extractAudioFromVideo(
 }
 
 /**
- * Deletes a temp file created by extractAudioFromVideo. Call this in a
- * finally block in your route handler so it always runs even if the
- * transcription or hook generation fails.
+ * Deletes a temp file. Call in a finally block in your route handler.
  */
 export async function cleanupTempFile(filePath: string): Promise<void> {
-  await fs.unlink(filePath).catch(() => {
-    // Silently ignore -- if the file was already cleaned up or never
-    // created, there's nothing useful to do here.
-  });
+  await fs.unlink(filePath).catch(() => {});
 }
