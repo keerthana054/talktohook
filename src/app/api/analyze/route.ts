@@ -1,31 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-import { extractAudioFromVideo, cleanupTempFile } from "@/lib/extractAudio";
-import { buildHookSystemPrompt, buildHookUserPrompt, HookResponse } from "@/lib/hookPrompt";
-import { checkUploadLimit } from "@/lib/uploadLimit";
 import { createClient } from "@/lib/supabase/server";
-import { promises as fs } from "fs";
+import { checkUploadLimit } from "@/lib/uploadLimit";
 
-const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200MB
-const MAX_VIDEO_MINUTES_NOTE = 10;
+// The heavy lifting (ffmpeg + OpenAI) runs on Railway where there's no
+// body size limit. This Vercel route handles auth + quota enforcement only,
+// then streams the request straight to Railway.
+const RAILWAY_URL = process.env.RAILWAY_ANALYZE_URL; // e.g. https://your-service.railway.app
+const SERVICE_SECRET = process.env.SERVICE_SECRET;
 
 export async function POST(req: NextRequest) {
-  let extractedAudioPath: string | null = null;
-
   try {
-    // --- 0. Require auth, then enforce the free upload limit ---
+    // --- 0. Auth + upload limit check ---
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "You need to be signed in to analyze a video." }, { status: 401 });
+      return NextResponse.json(
+        { error: "You need to be signed in to analyze a video." },
+        { status: 401 }
+      );
     }
 
     const limitCheck = await checkUploadLimit(user.id);
     if (!limitCheck.allowed) {
       return NextResponse.json(
         {
-          error: `You've used all ${limitCheck.limit} free uploads. Upgrade to keep generating hooks.`,
+          error: `You've used all ${limitCheck.limit} uploads. Upgrade to keep generating hooks.`,
           limitReached: true,
           count: limitCheck.count,
           limit: limitCheck.limit,
@@ -34,79 +34,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- 1. Receive the uploaded file ---
-    const formData = await req.formData();
-    const file = formData.get("video") as File | null;
-
-    if (!file) {
-      return NextResponse.json({ error: "No video file was uploaded." }, { status: 400 });
-    }
-
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (!RAILWAY_URL) {
       return NextResponse.json(
-        { error: `File is too large. Please keep uploads under ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB (roughly under ${MAX_VIDEO_MINUTES_NOTE} minutes of video).` },
-        { status: 400 }
-      );
-    }
-
-    const videoBuffer = Buffer.from(await file.arrayBuffer());
-
-    // --- 2. Extract audio from the video using ffmpeg ---
-    extractedAudioPath = await extractAudioFromVideo(videoBuffer, file.name);
-
-    // --- 3. Transcribe the audio with OpenAI's transcription API ---
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const audioFileForUpload = await fs.readFile(extractedAudioPath);
-    const transcriptionResponse = await openai.audio.transcriptions.create({
-      model: "gpt-4o-mini-transcribe",
-      file: new File([audioFileForUpload], "audio.mp3", { type: "audio/mpeg" }),
-    });
-
-    const transcript = transcriptionResponse.text?.trim();
-
-    if (!transcript) {
-      return NextResponse.json(
-        { error: "Transcription came back empty. Make sure the video actually contains spoken audio." },
-        { status: 422 }
-      );
-    }
-
-    // --- 4. Generate ranked hooks + captions with GPT-4o-mini ---
-    // Swapped from Claude to GPT-4o-mini here — same OpenAI client and
-    // billing as transcription, so there's only one provider to fund.
-    // We use the chat completions API with response_format json_object
-    // to force valid JSON back, which removes the need for the markdown-
-    // fence-stripping logic the Claude version needed.
-    const hookCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_tokens: 2000,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: buildHookSystemPrompt() },
-        { role: "user", content: buildHookUserPrompt(transcript) },
-      ],
-    });
-
-    const rawText = hookCompletion.choices[0]?.message?.content ?? "";
-
-    let parsed: HookResponse;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      return NextResponse.json(
-        { error: "Got a response from the AI but couldn't parse it as JSON.", raw: rawText },
+        { error: "Analyze service not configured." },
         { status: 500 }
       );
     }
 
-    // --- 5. Save the result to Supabase, tied to this user ---
+    // --- 1. Forward the request to Railway ---
+    // We pass the raw body straight through -- no buffering, no parsing.
+    // This avoids hitting Vercel's body size limit since we're just
+    // streaming bytes to another server.
+    const railwayRes = await fetch(`${RAILWAY_URL}/analyze`, {
+      method: "POST",
+      headers: {
+        // Forward the content-type so Railway's multer knows it's multipart
+        "content-type": req.headers.get("content-type") ?? "",
+        "x-service-secret": SERVICE_SECRET ?? "",
+      },
+      body: req.body,
+      // @ts-expect-error -- Next.js fetch needs duplex for streaming
+      duplex: "half",
+    });
+
+    if (!railwayRes.ok) {
+      const err = await railwayRes.json().catch(() => ({ error: "Railway service error." }));
+      return NextResponse.json(err, { status: railwayRes.status });
+    }
+
+    const data = await railwayRes.json();
+
+    // --- 2. Save result to Supabase ---
     const { data: savedUpload, error: saveError } = await supabase
       .from("uploads")
       .insert({
         user_id: user.id,
-        transcript,
-        hooks: parsed.hooks,
+        transcript: data.transcript,
+        hooks: data.hooks,
       })
       .select("id, created_at")
       .single();
@@ -116,8 +80,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      transcript,
-      hooks: parsed.hooks,
+      transcript: data.transcript,
+      hooks: data.hooks,
       uploadId: savedUpload?.id ?? null,
       uploadsUsed: limitCheck.count + 1,
       uploadsLimit: limitCheck.limit,
@@ -126,16 +90,5 @@ export async function POST(req: NextRequest) {
     console.error("Error in /api/analyze:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: `Something went wrong: ${message}` }, { status: 500 });
-  } finally {
-    if (extractedAudioPath) {
-      await cleanupTempFile(extractedAudioPath);
-    }
   }
 }
-
-// Phase 2: auth required, 3-upload free limit enforced, results saved to
-// Supabase. Both transcription AND hook generation now run on OpenAI
-// (gpt-4o-mini-transcribe + gpt-4o-mini) so there's a single API key and
-// a single bill to manage. ANTHROPIC_API_KEY is no longer required for
-// this route -- you can remove the @anthropic-ai/sdk import/dependency
-// if you're not using Claude anywhere else in the project.

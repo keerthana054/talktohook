@@ -25,16 +25,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session — do NOT remove this, it keeps the JWT alive.
+  // Refresh session -- do NOT remove this, it keeps the JWT alive.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect /app — send unauthenticated users to the landing page
+  // Protect /app -- send unauthenticated users to /sign-in which
+  // auto-triggers Google OAuth, preserving where they were trying to go.
   if (!user && request.nextUrl.pathname.startsWith("/app")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
-    // Preserve where they were trying to go so we can redirect back after login
+    url.pathname = "/sign-in";
     url.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
@@ -44,7 +44,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on all routes except static files and Next.js internals
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
