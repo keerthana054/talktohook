@@ -2,15 +2,22 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   experimental: {
-    // Raises the body size limit for the middleware/proxy layer so large
-    // video uploads (up to 200MB) aren't rejected before reaching the
-    // /api/analyze route handler. `middlewareClientMaxBodySize` was
-    // renamed to `proxyClientMaxBodySize` in Next.js 16.
-    proxyClientMaxBodySize: "200mb",
-
     serverActions: {
       bodySizeLimit: "200mb",
     },
+  },
+  // @ffmpeg/ffmpeg runs in WebAssembly and needs SharedArrayBuffer, which
+  // browsers only allow on pages served with these two headers.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+        ],
+      },
+    ];
   },
 };
 
