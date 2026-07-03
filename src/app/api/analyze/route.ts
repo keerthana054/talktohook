@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkUploadLimit } from "@/lib/uploadLimit";
 
-// The heavy lifting (ffmpeg + OpenAI) runs on Railway where there's no
-// body size limit. This Vercel route handles auth + quota enforcement only,
-// then streams the request straight to Railway.
-const RAILWAY_URL = process.env.RAILWAY_ANALYZE_URL; // e.g. https://your-service.railway.app
+export const runtime = "edge";
+
+const RAILWAY_URL = process.env.RAILWAY_ANALYZE_URL;
 const SERVICE_SECRET = process.env.SERVICE_SECRET;
 
 export async function POST(req: NextRequest) {
@@ -35,25 +34,20 @@ export async function POST(req: NextRequest) {
     }
 
     if (!RAILWAY_URL) {
-      return NextResponse.json(
-        { error: "Analyze service not configured." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Analyze service not configured." }, { status: 500 });
     }
 
-    // --- 1. Forward the request to Railway ---
-    // We pass the raw body straight through -- no buffering, no parsing.
-    // This avoids hitting Vercel's body size limit since we're just
-    // streaming bytes to another server.
+    // --- 1. Stream the request body directly to Railway ---
+    // Using edge runtime + streaming means Vercel never buffers the full
+    // body in memory, bypassing the 4.5MB serverless body size limit.
     const railwayRes = await fetch(`${RAILWAY_URL}/analyze`, {
       method: "POST",
       headers: {
-        // Forward the content-type so Railway's multer knows it's multipart
         "content-type": req.headers.get("content-type") ?? "",
         "x-service-secret": SERVICE_SECRET ?? "",
       },
       body: req.body,
-      // @ts-expect-error -- Next.js fetch needs duplex for streaming
+      // @ts-expect-error -- needed for streaming
       duplex: "half",
     });
 
