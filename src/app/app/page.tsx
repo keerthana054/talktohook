@@ -151,7 +151,7 @@ export default function UploadTool() {
             <section style={{ border: `2px solid ${C.black}`, background: C.white, padding: "1.75rem" }}>
               <label htmlFor="video-upload" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", border: `2px dashed ${C.black}`, padding: "3rem 1.5rem", textAlign: "center", cursor: "pointer" }}>
                 <span style={{ fontSize: "0.95rem", fontWeight: 700, color: C.black }}>{file ? file.name : "Click to choose a video file"}</span>
-                <span style={{ marginTop: "0.4rem", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#888" }}>MP4 or MOV · under ~10 minutes</span>
+                <span style={{ marginTop: "0.4rem", fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#888" }}>MP4 or MOV · under ~200mb</span>
                 <input id="video-upload" type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </label>
 
