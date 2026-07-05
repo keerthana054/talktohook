@@ -63,6 +63,7 @@ function RevealBlock({ children, delay = 0 }: { children: React.ReactNode; delay
   return (
     <div ref={ref} style={{
       height: "100%",
+      minWidth: 0,
       opacity: visible ? 1 : 0,
       transform: visible ? "translateY(0)" : "translateY(28px)",
       transition: `opacity 0.6s ease ${delay}ms, transform 0.6s ease ${delay}ms`,
@@ -105,7 +106,7 @@ function GridCard({ bg, textColor, isLast, border = C.black, children }: {
       background: bg, color: textColor,
       border: `2px solid ${border}`,
       borderRight: isLast ? `2px solid ${border}` : "none",
-      padding: "2rem", height: "100%", display: "flex", flexDirection: "column",
+      padding: "2rem", height: "100%", minWidth: 0, display: "flex", flexDirection: "column",
     }}>
       {children}
     </div>
@@ -114,6 +115,7 @@ function GridCard({ bg, textColor, isLast, border = C.black, children }: {
 
 export default function LandingPage() {
   const [navScrolled, setNavScrolled] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 40);
@@ -126,6 +128,7 @@ export default function LandingPage() {
       <style>{`
         @import url('${FONTS}');
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { overflow-x: clip; }
         body { background: ${C.sand}; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         @keyframes marquee { from{transform:translateX(0)} to{transform:translateX(-50%)} }
@@ -137,6 +140,23 @@ export default function LandingPage() {
         .nav-link { position: relative; text-decoration: none; }
         .nav-link::after { content:''; position:absolute; bottom:-2px; left:0; width:0; height:2px; background:${C.cherry}; transition:width 0.2s; }
         .nav-link:hover::after { width:100%; }
+
+        .nav-desktop-links { display: flex; align-items: center; gap: 2rem; }
+        .nav-right { display: flex; align-items: center; gap: 0.75rem; }
+        .nav-toggle {
+          display: none; align-items: center; justify-content: center;
+          width: 40px; height: 40px; background: transparent;
+          border: 2px solid ${C.black}; font-size: 1.1rem; cursor: pointer; line-height: 1;
+        }
+        .nav-mobile {
+          display: flex; flex-direction: column; gap: 1.25rem;
+          padding: 1.25rem 1.5rem; background: ${C.sand}; border-bottom: 2px solid ${C.black};
+        }
+        @media (max-width: 768px) {
+          .nav-desktop-links { display: none; }
+          .nav-toggle { display: inline-flex; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation: none !important; transition: none !important; }
         }
@@ -151,15 +171,35 @@ export default function LandingPage() {
           borderBottom: navScrolled ? `2px solid ${C.black}` : "2px solid transparent",
           transition: "background 0.3s, border-color 0.3s",
         }}>
-          <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem" }}>
-            <span style={{ fontFamily: "'Fraunces', serif", fontSize: "1.3rem", fontWeight: 900, letterSpacing: "-0.03em" }}>TalkToHook</span>
-            <div style={{ display: "flex", alignItems: "center", gap: "2rem" }}>
+          <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.5rem", gap: "1rem" }}>
+            <span style={{ fontFamily: "'Fraunces', serif", fontSize: "1.3rem", fontWeight: 900, letterSpacing: "-0.03em", whiteSpace: "nowrap" }}>TalkToHook</span>
+
+            <div className="nav-desktop-links">
               <a href="#pain" className="nav-link" style={{ fontSize: "0.82rem", color: C.black, fontWeight: 600 }}>Problem</a>
               <a href="#how" className="nav-link" style={{ fontSize: "0.82rem", color: C.black, fontWeight: 600 }}>How it works</a>
               <a href="#pricing" className="nav-link" style={{ fontSize: "0.82rem", color: C.black, fontWeight: 600 }}>Pricing</a>
+            </div>
+
+            <div className="nav-right">
               <AuthButton />
+              <button
+                className="nav-toggle"
+                aria-label="Toggle menu"
+                aria-expanded={mobileOpen}
+                onClick={() => setMobileOpen(o => !o)}
+              >
+                {mobileOpen ? "✕" : "☰"}
+              </button>
             </div>
           </div>
+
+          {mobileOpen && (
+            <div className="nav-mobile">
+              <a href="#pain" onClick={() => setMobileOpen(false)} style={{ fontSize: "0.95rem", color: C.black, fontWeight: 600, textDecoration: "none" }}>Problem</a>
+              <a href="#how" onClick={() => setMobileOpen(false)} style={{ fontSize: "0.95rem", color: C.black, fontWeight: 600, textDecoration: "none" }}>How it works</a>
+              <a href="#pricing" onClick={() => setMobileOpen(false)} style={{ fontSize: "0.95rem", color: C.black, fontWeight: 600, textDecoration: "none" }}>Pricing</a>
+            </div>
+          )}
         </nav>
 
         {/* Hero */}
@@ -168,12 +208,12 @@ export default function LandingPage() {
             <div className="stamp" style={{ display: "inline-block", background: C.cobalt, color: C.white, padding: "0.2rem 0.7rem", fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: "1.5rem" }}>
               for coaches &amp; consultants
             </div>
-            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(3rem, 7vw, 6rem)", lineHeight: 0.95, letterSpacing: "-0.04em", fontWeight: 900, maxWidth: "12ch" }}>
+            <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(2.5rem, 7vw, 6rem)", lineHeight: 0.95, letterSpacing: "-0.04em", fontWeight: 900, maxWidth: "12ch" }}>
               You already said the{" "}
               <Typewriter words={["good part.", "hook.", "money line.", "viral bit.", "best line."]} />
             </h1>
-            <p style={{ marginTop: "2rem", maxWidth: "44ch", fontSize: "1.1rem", lineHeight: 1.65, color: "#333", fontWeight: 400 }}>
-              Upload a talking video. TalkToHook finds the line worth posting and hands you 5 ranked hooks, each with a caption ready to paste - all grounded in your own words.
+            <p style={{ marginTop: "2rem", maxWidth: "46ch", fontSize: "1.1rem", lineHeight: 1.65, color: "#333", fontWeight: 400 }}>
+              Upload a talking video - we only listen to what you say, so the visuals don&apos;t matter. TalkToHook finds the line worth posting and hands you 5 ranked hooks, each with a caption ready to paste - all grounded in your own words.
             </p>
             <div style={{ marginTop: "2.5rem", display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
               <Link href="/app" className="cta-btn" style={{ background: C.cherry, color: C.white, border: `2px solid ${C.black}`, padding: "1rem 2.25rem", fontSize: "1rem", fontWeight: 800, textDecoration: "none", display: "inline-block" }}>
@@ -183,7 +223,7 @@ export default function LandingPage() {
                 See how it works ↓
               </a>
             </div>
-            <p style={{ marginTop: "1.25rem", fontSize: "0.78rem", color: "#888", fontWeight: 500 }}>No card required · 3 uploads free · 90 seconds</p>
+            <p style={{ marginTop: "1.25rem", fontSize: "0.78rem", color: "#888", fontWeight: 500 }}>No card required · 3 uploads free · MP4/MOV under 200MB</p>
           </div>
         </header>
 
@@ -214,7 +254,7 @@ export default function LandingPage() {
                 <GridCard bg={C.white} textColor={C.black}>
                   <span style={{ fontSize: "0.72rem", fontWeight: 800, color: C.cherry, letterSpacing: "0.15em" }}>THEM</span>
                   <p style={{ marginTop: "1rem", fontFamily: "'Fraunces', serif", fontSize: "1.15rem", fontStyle: "italic", fontWeight: 400, color: "#999", lineHeight: 1.5, textDecoration: "line-through" }}>
-                    "New episode! So much value in this one! 🙌"
+                    &quot;New episode! So much value in this one! 🙌&quot;
                   </p>
                   <p style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: "#aaa", fontWeight: 600 }}>3 likes. One from your mum.</p>
                 </GridCard>
@@ -223,7 +263,7 @@ export default function LandingPage() {
                 <GridCard bg={C.pink} textColor={C.black} isLast>
                   <span style={{ fontSize: "0.72rem", fontWeight: 800, color: C.cobalt, letterSpacing: "0.15em" }}>YOU</span>
                   <p style={{ marginTop: "1rem", fontFamily: "'Fraunces', serif", fontSize: "1.15rem", fontStyle: "italic", fontWeight: 700, color: C.black, lineHeight: 1.5 }}>
-                    "Most coaches charge for this next part. I'm giving it away because nobody talks about it."
+                    &quot;Most coaches charge for this next part. I&apos;m giving it away because nobody talks about it.&quot;
                   </p>
                   <p style={{ marginTop: "0.75rem", fontSize: "0.82rem", color: C.cobalt, fontWeight: 700 }}>847 views. 23 new follows.</p>
                 </GridCard>
@@ -231,7 +271,7 @@ export default function LandingPage() {
             </div>
             <RevealBlock delay={300}>
               <p style={{ marginTop: "2.5rem", maxWidth: "54ch", fontSize: "1rem", lineHeight: 1.75, color: "rgba(255,255,255,0.75)", fontWeight: 400 }}>
-                The people getting followers aren't smarter than you. They just post the one sentence that makes people lean in. TalkToHook finds that sentence.
+                The people getting followers aren&apos;t smarter than you. They just post the one sentence that makes people lean in. TalkToHook finds that sentence.
               </p>
             </RevealBlock>
           </div>
@@ -248,7 +288,7 @@ export default function LandingPage() {
             </RevealBlock>
             <div style={{ marginTop: "3rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0" }}>
               {[
-                { bg: C.pink, label: "Upload your video", body: "Drop in any talking video - a call recording, a Loom, a podcast, a reel. MP4 or MOV, up to 10 minutes.", accent: C.cherry },
+                { bg: C.pink, label: "Upload your video", body: "Drop in any talking video - a call recording, a Loom, a podcast, a reel. We only listen to what you say, so the visuals don't matter. MP4 or MOV, under 200MB.", accent: C.cherry },
                 { bg: C.cobalt, label: "We find the gold", body: "We transcribe it, read every line, and identify the moments most likely to stop someone mid-scroll.", accent: C.white },
                 { bg: C.cherry, label: "5 hooks, ready to post", body: "Each labeled with the copywriting framework - curiosity gap, bold claim, contrarian take - so you learn what works. A ready-to-post caption comes with every one.", accent: C.pink },
               ].map(({ bg, label, body, accent }, i, arr) => (
@@ -283,7 +323,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <p style={{ fontFamily: "'Fraunces', serif", fontSize: "1.1rem", lineHeight: 1.6, color: C.black, fontStyle: "italic", fontWeight: 400 }}>
-                  "Most coaches charge for what I'm about to say. I'm giving it away because nobody in this space is actually honest about it."
+                  &quot;Most coaches charge for what I&apos;m about to say. I&apos;m giving it away because nobody in this space is actually honest about it.&quot;
                 </p>
                 {/* Caption preview — styled as a clear secondary bonus below the hero hook */}
                 <div style={{ marginTop: "1.25rem", background: C.sand, border: "1px solid #ddd", padding: "0.85rem 1rem" }}>
@@ -291,7 +331,7 @@ export default function LandingPage() {
                     + caption, included
                   </p>
                   <p style={{ fontSize: "0.8rem", color: "#555", lineHeight: 1.55 }}>
-                    Most coaches charge for what I'm about to say - I'm giving it away because nobody is honest about this. Stop guessing. Follow for more.
+                    Most coaches charge for what I&apos;m about to say - I&apos;m giving it away because nobody is honest about this. Stop guessing. Follow for more.
                   </p>
                 </div>
                 <div style={{ marginTop: "1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
@@ -322,7 +362,7 @@ export default function LandingPage() {
             <RevealBlock>
               <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: C.pink }}>us vs. them</span>
               <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(2rem, 4vw, 3rem)", lineHeight: 1.05, letterSpacing: "-0.03em", marginTop: "0.75rem", fontWeight: 900, color: C.white, maxWidth: "20ch" }}>
-                What they post vs what you're about to post.
+                What they post vs what you&apos;re about to post.
               </h2>
             </RevealBlock>
             <div style={{ marginTop: "3rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "0" }}>
@@ -352,7 +392,7 @@ export default function LandingPage() {
             <RevealBlock>
               <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: C.cherry }}>no, really</span>
               <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(2rem, 4vw, 3rem)", lineHeight: 1.05, letterSpacing: "-0.03em", marginTop: "0.75rem", fontWeight: 900, maxWidth: "18ch" }}>
-                You're out of excuses.
+                You&apos;re out of excuses.
               </h2>
               <p style={{ marginTop: "0.75rem", fontSize: "0.85rem", color: "#888", fontWeight: 500 }}>Hover each one.</p>
             </RevealBlock>
@@ -377,7 +417,7 @@ export default function LandingPage() {
             <RevealBlock>
               <span style={{ fontSize: "0.68rem", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", color: C.pink }}>why i built this</span>
               <blockquote style={{ fontFamily: "'Fraunces', serif", fontSize: "clamp(1.2rem, 2.5vw, 1.6rem)", lineHeight: 1.6, marginTop: "1.5rem", color: C.white, fontStyle: "italic", fontWeight: 400 }}>
-                "I kept watching coaches post the hardest-working content online - real calls, honest insights, genuine expertise - and get ignored. Then I'd see someone rephrase the same idea as a one-liner and get 10,000 impressions. The hook was always already there. It just needed finding."
+                &quot;I kept watching coaches post the hardest-working content online - real calls, honest insights, genuine expertise - and get ignored. Then I&apos;d see someone rephrase the same idea as a one-liner and get 10,000 impressions. The hook was always already there. It just needed finding.&quot;
               </blockquote>
               <p style={{ marginTop: "1.5rem", fontSize: "0.875rem", color: "rgba(254,198,233,0.7)", fontWeight: 500 }}>
                 - Built by someone who got tired of watching good ideas go unheard.
@@ -456,10 +496,10 @@ export default function LandingPage() {
                 Upload a video. Get your hook and caption. Post tonight.
               </p>
               <Link href="/app" className="cta-btn" style={{ display: "inline-block", marginTop: "2.5rem", background: C.cherry, color: C.white, border: `2px solid ${C.black}`, padding: "1.1rem 2.75rem", fontSize: "1.1rem", fontWeight: 800, textDecoration: "none" }}>
-                Find my hook - it's free
+                Find my hook - it&apos;s free
               </Link>
               <p style={{ marginTop: "1.25rem", fontSize: "0.78rem", color: "rgba(254,198,233,0.6)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                3 uploads free · no card required · 90 seconds
+                3 uploads free · no card required · MP4/MOV under 200MB
               </p>
             </RevealBlock>
           </div>
