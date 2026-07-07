@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PlanId } from "@/lib/stripe";
+import type { PlanId } from "@/lib/polar";
 
 const C = { black: "#0a0a0a" };
 
