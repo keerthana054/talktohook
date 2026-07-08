@@ -19,13 +19,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid plan selected." }, { status: 400 });
     }
 
+    if (!user.email) {
+      return NextResponse.json({ error: "Your account is missing an email." }, { status: 400 });
+    }
+
     const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL;
 
     const session = await dodo.checkoutSessions.create({
       product_cart: [{ product_id: planConfig.productId, quantity: 1 }],
-      customer: { email: user.email ?? undefined },
-      // Dodo has no externalCustomerId — we carry the mapping in metadata,
-      // which comes back on every webhook so we know whose plan to flip.
+      customer: { email: user.email },   // now a plain string — error clears
       metadata: { supabase_user_id: user.id, plan },
       return_url: `${origin}/billing/success`,
     });
