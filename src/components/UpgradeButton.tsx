@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PlanId } from "@/lib/polar";
+import type { PlanId } from "@/lib/dodo";
 
 const C = { black: "#0a0a0a" };
 

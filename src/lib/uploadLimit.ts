@@ -15,7 +15,7 @@
 // improvement, not silently shipped as something it isn't.
 
 import { createClient } from "@/lib/supabase/server";
-import { PLANS, PlanId } from "@/lib/polar";
+import { PLANS, PlanId } from "@/lib/dodo";
 
 export interface UploadLimitCheck {
   allowed: boolean;

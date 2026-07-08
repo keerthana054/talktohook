@@ -1,7 +1,7 @@
-// app/api/checkout/route.ts  (or wherever your current file lives)
+// app/api/checkout/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { polar, PLANS, PlanId } from "@/lib/polar";
+import { dodo, PLANS, PlanId } from "@/lib/dodo";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,20 +21,18 @@ export async function POST(req: NextRequest) {
 
     const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL;
 
-    const checkout = await polar.checkouts.create({
-      products: [planConfig.productId],
-      // Your Supabase user id. Polar creates/reuses a Customer keyed on this,
-      // so no stripe_customer_id-style lookup or de-dupe is needed. On webhooks
-      // it comes back as customer.externalId.
-      externalCustomerId: user.id,
-      customerEmail: user.email ?? undefined,
-      // Same as your Stripe metadata — the webhook reads supabase_user_id to know
-      // whose plan to flip, rather than matching on email.
+    const session = await dodo.checkoutSessions.create({
+      product_cart: [{ product_id: planConfig.productId, quantity: 1 }],
+      customer: { email: user.email ?? undefined },
+      // Dodo has no externalCustomerId — we carry the mapping in metadata,
+      // which comes back on every webhook so we know whose plan to flip.
       metadata: { supabase_user_id: user.id, plan },
-      successUrl: `${origin}/billing/success?checkout_id={CHECKOUT_ID}`,
+      return_url: `${origin}/billing/success`,
     });
 
-    return NextResponse.json({ url: checkout.url });
+    // Dodo returns `checkout_url`; we keep the response key `url` so the
+    // existing UpgradeButton (which reads data.url) works unchanged.
+    return NextResponse.json({ url: session.checkout_url });
   } catch (err) {
     console.error("Error creating checkout session:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
